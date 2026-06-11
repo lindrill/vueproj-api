@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router(); // api
 const User = require('../models/users');
+const bycrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 /*
 	routes for users
@@ -27,18 +29,21 @@ router.get('by_user/:user_id', async (req, res) => {
 });
 
 // save new user to DB
-router.post('/', async (req, res) => {
-	// var newTagsArray = [];
+router.post('/new', async (req, res) => {
+
+	// check if email exists
+    const emailExist = await User.findOne({email: req.body.email});
+    if(emailExist) return res.send('Email already exist');
+
+    // hash password
+    const salt = await bycrypt.genSalt(10);
+    const hashedPassword = await bycrypt.hash(req.body.password, salt);
+
+	req.body.password = hashedPassword;
+
 	const newUser = new User({
-        first_name: req.body.first_name,
-        last_name: req.body.last_name,
-        password: req.body.password,
-        email: req.body.email,
-        // phone: req.body.phone,
-        // designation: req.body.designation,
-        // tags: newTagsArray,
-        // role_id: req.body.role_id
-    });
+		...req.body
+	})
 
 	try {
 		const savedUser = await newUser.save();
@@ -52,7 +57,7 @@ router.post('/', async (req, res) => {
 // delete a user
 router.delete('/:user_id', async (req, res) => {
 	try {
-		const removeUser = await User.remove({_id: req.params.user_id});
+		const removeUser = await User.deleteOne({_id: req.params.user_id});
 		res.json(removeUser);
 	} catch(err) {
 		res.json({message: err});
@@ -65,16 +70,7 @@ router.patch('/:user_id', async (req, res) => {
 		const updateUser = await User.updateOne(
 			{_id: req.params.user_id },
 			{$set:
-				{ 
-					first_name: req.body.first_name,
-                    last_name: req.body.last_name,
-                    password: req.body.password,
-                    email: req.body.email,
-                    phone: req.body.phone,
-                    designation: req.body.designation,
-                    tags: req.body.tags,
-                    role_id: req.body.role_id
-				}
+				{...req.body}
 			}
 		);
 		res.json(updateUser);

@@ -18,7 +18,7 @@ const UserSchema = mongoose.Schema ({
     token: {
         type: String
     },
-    role_id: {
+    role: {
         type: String,
         default: "member"
     }
