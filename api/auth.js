@@ -94,4 +94,61 @@ router.post('/logout', async (req, res) => {
     }
 });
 
+// confirm if current password is correct (form validation)
+router.patch('/confirmCurrentPassword/:user_id', async (req, res) => {
+
+	try {
+        // get user password
+        const user = await User.findOne({_id: req.params.user_id});
+
+        // check if password is correct
+        const validPass = await bycrypt.compare(req.body.current_password, user.password);
+        if(!validPass) return res.status(400).send({error: 'Current password is incorrect'})
+        return res.status(200).send({success: true, message: 'Password is correct'})
+		
+	} catch(err) {
+		res.json({message: err});
+	}
+	
+});
+
+// verify if new password is different from current password (form validation)
+router.patch('/verifyNewPassword/:user_id', async (req, res) => {
+
+	try {
+        // get user password
+        const user = await User.findOne({_id: req.params.user_id});
+
+        // check if password is correct
+        const samePass = await bycrypt.compare(req.body.new_password, user.password);
+        if(samePass) return res.status(400).send({error: 'New password cannot be the same as your current password.'})
+        return res.status(200).send({success: true, message: 'Password is ok'})
+		
+	} catch(err) {
+		res.json({message: err});
+	}
+	
+});
+
+// change user password
+router.patch('/changePassword/:user_id', async (req, res) => {
+
+    // hash password
+    const salt = await bycrypt.genSalt(10);
+    const hashedPassword = await bycrypt.hash(req.body.new_password, salt);
+
+	try {
+		const updateUser = await User.updateOne(
+			{_id: req.params.user_id },
+			{$set:
+				{ password: hashedPassword }
+			}
+		);
+		res.json(updateUser);
+	} catch(err) {
+		res.json({message: err});
+	}
+	
+});
+
 module.exports = router;
