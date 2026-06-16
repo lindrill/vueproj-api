@@ -1,3 +1,6 @@
+require('dotenv/config');
+require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
+
 const express = require('express');
 const app = express();
 const port = 3300;
@@ -8,9 +11,6 @@ const categoryRoute = require('./api/categories'); // import category route
 const userRoute = require('./api/users'); // import user route
 const todoRoute = require('./api/todos'); // import todos route
 const authRoute = require('./api/auth'); // import auth route
-
-require('dotenv/config');
-require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
 
 var corsOptions = {
 	origin: 'http://localhost:3000',

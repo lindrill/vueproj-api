@@ -3,7 +3,8 @@ const router = express.Router(); // api
 const User = require('../models/users');
 const bycrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
+const nodemailer = require('nodemailer');
+const verify = require('../verifytoken');
 const { registerValidation, loginValidation } = require('../validations/AuthValidation');
 
 // register 
@@ -69,7 +70,7 @@ router.post('/login', async (req, res) => {
     res.send({ user, token });
 });
 
-router.post('/logout', async (req, res) => {
+router.post('/logout', verify, async (req, res) => {
     // jwt.destroy(res.header('auth-token'));
     // res.send('Logout');
 
@@ -95,7 +96,7 @@ router.post('/logout', async (req, res) => {
 });
 
 // confirm if current password is correct (form validation)
-router.patch('/confirmCurrentPassword/:user_id', async (req, res) => {
+router.patch('/confirmCurrentPassword/:user_id', verify, async (req, res) => {
 
 	try {
         // get user password
@@ -113,7 +114,7 @@ router.patch('/confirmCurrentPassword/:user_id', async (req, res) => {
 });
 
 // verify if new password is different from current password (form validation)
-router.patch('/verifyNewPassword/:user_id', async (req, res) => {
+router.patch('/verifyNewPassword/:user_id', verify, async (req, res) => {
 
 	try {
         // get user password
@@ -131,7 +132,7 @@ router.patch('/verifyNewPassword/:user_id', async (req, res) => {
 });
 
 // change user password
-router.patch('/changePassword/:user_id', async (req, res) => {
+router.patch('/changePassword/:user_id', verify, async (req, res) => {
 
     // hash password
     const salt = await bycrypt.genSalt(10);
@@ -149,6 +150,40 @@ router.patch('/changePassword/:user_id', async (req, res) => {
 		res.json({message: err});
 	}
 	
+});
+
+
+// Create a transporter using SMTP
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+// forgot password
+router.post('/forgotPassword', async (req, res) => {
+
+    // check if email exists
+    const emailExist = await User.findOne({email: req.body.email});
+    if(!emailExist) return res.status(401).send({error: 'Email not found!'})
+
+    try {
+        const resetLink = 'http://localhost:3000/resetPassword/' + emailExist._id;
+        const info = await transporter.sendMail({
+            from: '"Tinker Team" <tinker@example.com>', // sender address
+            to: req.body.email,
+            subject: 'Password Reset Request',
+            html: `<p>Click <a href="${resetLink}">here</a> to reset your password</p>`
+        });
+        
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info)); // Preview URL is only available when using an Ethereal test account
+        res.json({message: "Message sent: " + info.messageId});
+    } catch (err) {
+        console.error("Error while sending mail:", err);
+        return res.status(400).send({error: 'Failed to send password reset link.'})
+    }
 });
 
 module.exports = router;

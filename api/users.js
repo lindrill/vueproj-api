@@ -3,13 +3,14 @@ const router = express.Router(); // api
 const User = require('../models/users');
 const bycrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const verify = require('../verifytoken');
 
 /*
 	routes for users
 */
 
 // get users
-router.get('/all', async (req, res) => {
+router.get('/all', verify, async (req, res) => {
 	try {
 		const getUsers = await User.find();
 		res.send(getUsers);
@@ -19,7 +20,7 @@ router.get('/all', async (req, res) => {
 });
 
 // get specific user
-router.get('by_user/:user_id', async (req, res) => {
+router.get('by_user/:user_id', verify, async (req, res) => {
 	try {
 		const getUser = await User.findById(req.params.user_id);
 		res.json(getUser);
@@ -29,7 +30,7 @@ router.get('by_user/:user_id', async (req, res) => {
 });
 
 // save new user to DB
-router.post('/new', async (req, res) => {
+router.post('/new', verify,async (req, res) => {
 
 	// check if email exists
     const emailExist = await User.findOne({email: req.body.email});
@@ -55,7 +56,7 @@ router.post('/new', async (req, res) => {
 });
 
 // delete a user
-router.delete('/:user_id', async (req, res) => {
+router.delete('/:user_id', verify, async (req, res) => {
 	try {
 		const removeUser = await User.deleteOne({_id: req.params.user_id});
 		res.json(removeUser);
@@ -65,7 +66,7 @@ router.delete('/:user_id', async (req, res) => {
 });
 
 // update user
-router.patch('/:user_id', async (req, res) => {
+router.patch('/:user_id', verify, async (req, res) => {
 	try {
 		const updateUser = await User.updateOne(
 			{_id: req.params.user_id },
