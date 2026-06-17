@@ -5,6 +5,7 @@ const bycrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const verify = require('../verifytoken');
+const crypto = require('crypto');
 const { registerValidation, loginValidation } = require('../validations/AuthValidation');
 
 // register 
@@ -166,16 +167,34 @@ const transporter = nodemailer.createTransport({
 router.post('/forgotPassword', async (req, res) => {
 
     // check if email exists
-    const emailExist = await User.findOne({email: req.body.email});
-    if(!emailExist) return res.status(401).send({error: 'Email not found!'})
+    const user = await User.findOne({email: req.body.email});
+    if(!user) return res.status(401).send({error: 'Email not found!'})
 
     try {
-        const resetLink = 'http://localhost:3000/resetPassword/' + emailExist._id;
+        // Generate secure random token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+
+        // Hash token before saving (security best practice)
+        const hashedToken = await bycrypt.hash(resetToken, 10);
+
+        // Save hashed token and expiration (1 hour from now)
+        user.tokens = {
+            resetPasswordToken: hashedToken,
+            resetPasswordExpires: Date.now() + 3600000 // 1 hour
+        }
+        await user.save();
+
+        const resetLink = 'http://localhost:3000/resetPassword/' + resetToken;
         const info = await transporter.sendMail({
             from: '"Tinker Team" <tinker@example.com>', // sender address
             to: req.body.email,
             subject: 'Password Reset Request',
-            html: `<p>Click <a href="${resetLink}">here</a> to reset your password</p>`
+            html: `
+                <p>You requested a password reset</p>
+                <p>Click <a href="${resetLink}">here</a> to reset your password</p>
+                <p>This link expires in 1 hour.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+            `
         });
         
         console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info)); // Preview URL is only available when using an Ethereal test account
@@ -184,6 +203,47 @@ router.post('/forgotPassword', async (req, res) => {
         console.error("Error while sending mail:", err);
         return res.status(400).send({error: 'Failed to send password reset link.'})
     }
+});
+
+// reset user password
+router.post('/resetPassword/:token', async (req, res) => {
+
+    // Find users with non-expired tokens
+    const users = await User.find({
+        'tokens.resetPasswordExpires': { $gt: Date.now() }
+    });
+
+    // Find user with matching token
+    let validUser = null;
+    for(let user of users) {
+        const isValid = await bycrypt.compare(req.params.token, user.tokens.resetPasswordToken);
+        console.log('isValid:', isValid)
+        if(isValid) {
+            validUser = user;
+            break;
+        }
+    }
+
+    if (!validUser) {
+        return res.status(400).send({error: 'Invalid or expired reset token.'});
+    }
+
+    // hash password
+    const salt = await bycrypt.genSalt(10);
+    const hashedPassword = await bycrypt.hash(req.body.new_password, salt);
+
+	try {
+		const updateUser = await User.updateOne(
+			{ _id: validUser._id },
+			{ $set:
+				{ password: hashedPassword, tokens: null }
+			}
+		);
+		res.json(updateUser);
+	} catch(err) {
+		res.json({message: err});
+	}
+	
 });
 
 module.exports = router;

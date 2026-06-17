@@ -15,8 +15,9 @@ const UserSchema = mongoose.Schema ({
         min: 6,
         max: 255
     },
-    token: {
-        type: String
+    tokens: {
+        type: Object,
+        default: null
     },
     role: {
         type: String,
