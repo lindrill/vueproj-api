@@ -246,4 +246,32 @@ router.post('/resetPassword/:token', async (req, res) => {
 	
 });
 
+// Validate reset token (before showing form)
+router.get('/validateResetToken/:token', async (req, res) => {
+    try {
+        // Find users with non-expired tokens
+        const users = await User.find({
+            'tokens.resetPasswordExpires': { $gt: Date.now() }
+        });
+ 
+        // Find user with matching token
+        let validUser = null;
+        for(let user of users) {
+            const isValid = await bycrypt.compare(req.params.token, user.tokens.resetPasswordToken);
+            if(isValid) {
+                validUser = user;
+                break;
+            }
+        }
+ 
+        if (!validUser) {
+            return res.status(400).send({error: 'Invalid or expired reset token'});
+        }
+ 
+        res.json({message: 'Token is valid'});
+    } catch (err) {
+        res.status(400).send({error: 'Invalid token'});
+    }
+});
+
 module.exports = router;
