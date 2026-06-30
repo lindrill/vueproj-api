@@ -25,7 +25,10 @@ const TodoSchema = mongoose.Schema ({
         default: new Date()
     },
     time: String,
-    createdBy: String,
+    createdBy: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'users' 
+    },
     completed: {
         type: Boolean,
         default: false

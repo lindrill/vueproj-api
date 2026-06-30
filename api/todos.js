@@ -3,6 +3,7 @@ const { default: mongoose } = require('mongoose');
 const router = express.Router(); // api
 const Todo = require('../models/todos');
 const verify = require('../verifytoken');
+const ObjectId = require('mongoose').Types.ObjectId
 
 /*
 	routes for todos
@@ -11,8 +12,52 @@ const verify = require('../verifytoken');
 // get all todos
 router.get('/all', verify, async (req, res) => {
 	try {
-		const getTodos = await Todo.find();
-		res.send(getTodos);
+		const results = await Todo.aggregate([
+			{
+                $match: {
+                    "status": {$eq: 'pending'},
+                    "createdBy": {$eq: new ObjectId(req.query.userId)},
+                }
+            },
+			{
+                $lookup: {
+                    from: 'users',
+                    localField: 'createdBy',
+                    foreignField: '_id',
+                    as: 'createdBy'
+                }
+            },
+			{
+                $unwind: {
+                    path: '$createdBy',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+			{
+                $sort: {
+                    dueDate: 1
+                }
+            },
+			{
+				$facet: {
+					// Stream A: Get the total matching count before limits are applied
+					totalCount: [
+						{ $count: "count" }
+					],
+					// Stream B: Apply skip and limit to fetch the specific data page
+					paginatedData: [
+						{ $skip: parseInt(req.query.skip) },
+						{ $limit: parseInt(req.query.limit) }
+					]
+				}
+			}
+		])
+
+		// Format the output since $facet returns an array containing arrays
+		const total = results[0]?.totalCount[0]?.count || 0;
+		const todos = results[0]?.paginatedData || [];
+
+		res.send({todos, total});
 	} catch (err) {
 		res.json({message: err});
 	}
