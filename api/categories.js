@@ -1,16 +1,38 @@
 const express = require('express');
 const router = express.Router(); // api
 const Category = require('../models/categories');
+const ObjectId = require('mongoose').Types.ObjectId
 
 /*
 	routes for categories
 */
 
-// get categories
-router.get('/', async (req, res) => {
+// get all categories
+router.get('/all', async (req, res) => {
 	try {
-		const getCategories = await Category.find();
-		res.send(getCategories);
+		const categories = await Category.aggregate([
+			{
+                $match: {
+                    "createdBy": {$eq: new ObjectId(req.query.userId)},
+                }
+            },
+			{
+                $lookup: {
+                    from: 'users',
+                    localField: 'createdBy',
+                    foreignField: '_id',
+                    as: 'createdBy'
+                }
+            },
+			{
+				$addFields: {
+					createdBy: { 
+						$arrayElemAt: ['$createdBy', 0] 
+					}
+				}
+			}
+		])
+		res.send(categories);
 	} catch (err) {
 		res.json({message: err});
 	}
@@ -31,7 +53,8 @@ router.get('/:cat_id', async (req, res) => {
 router.post('/new', async (req, res) => {
 	const newCategory = new Category({
 		title: req.body.title,
-		description: req.body.description
+		icon: req.body.icon,
+		createdBy: req.body.createdBy
 	});
 
 	try {
@@ -46,7 +69,7 @@ router.post('/new', async (req, res) => {
 // delete a category
 router.delete('/:cat_id', async (req, res) => {
 	try {
-		const removeCategory = await Category.remove({_id: req.params.cat_id});
+		const removeCategory = await Category.deleteOne({_id: req.params.cat_id});
 		res.json(removeCategory);
 	} catch(err) {
 		res.json({message: err});
@@ -61,7 +84,7 @@ router.patch('/:cat_id', async (req, res) => {
 			{$set:
 				{ 
 					title: req.body.title,
-					description: req.body.description
+					icon: req.body.icon
 				}
 			}
 		);

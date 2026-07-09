@@ -2,7 +2,11 @@ const mongoose = require('mongoose');
 
 const CategorySchema = mongoose.Schema ({
 	title: String,
-	description: String
+	icon: String,
+	createdBy: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'users' 
+    }
 })
 
 CategorySchema.set('timestamps', true)

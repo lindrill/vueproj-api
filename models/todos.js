@@ -20,10 +20,6 @@ const TodoSchema = mongoose.Schema ({
         default: "pending"
     },
     dueDate: Date,
-    dateCreated: {
-        type: Date,
-        default: new Date()
-    },
     time: String,
     createdBy: { 
         type: mongoose.Schema.Types.ObjectId, 
@@ -32,7 +28,11 @@ const TodoSchema = mongoose.Schema ({
     completed: {
         type: Boolean,
         default: false
-    }
+    },
+    category: { 
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'categories' 
+    },
 });
-
+TodoSchema.set('timestamps', true)
 module.exports = mongoose.model('todos', TodoSchema);

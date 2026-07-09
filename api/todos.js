@@ -28,6 +28,14 @@ router.get('/all', verify, async (req, res) => {
                 }
             },
 			{
+                $lookup: {
+                    from: 'categories',
+                    localField: 'category',
+                    foreignField: '_id',
+                    as: 'category'
+                }
+            },
+			{
                 $unwind: {
                     path: '$createdBy',
                     preserveNullAndEmptyArrays: true
