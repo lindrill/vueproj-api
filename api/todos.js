@@ -15,7 +15,7 @@ router.get('/all', verify, async (req, res) => {
 		const results = await Todo.aggregate([
 			{
                 $match: {
-                    "status": {$eq: 'pending'},
+                    // "status": {$eq: 'pending'},
                     "createdBy": {$eq: new ObjectId(req.query.userId)},
                 }
             },
@@ -41,6 +41,13 @@ router.get('/all', verify, async (req, res) => {
                     preserveNullAndEmptyArrays: true
                 }
             },
+			{
+				$addFields: {
+					category: { 
+						$arrayElemAt: ['$category', 0] 
+					}
+				}
+			},
 			{
                 $sort: {
                     dueDate: 1
