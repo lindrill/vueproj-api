@@ -11,13 +11,22 @@ const ObjectId = require('mongoose').Types.ObjectId
 
 // get all todos
 router.get('/all', verify, async (req, res) => {
+	const status = req.query.status == 'all' ? '' : req.query.status
+	let filter = {$and: [{"createdBy": {$eq: new ObjectId(req.query.userId)}}]}
+
+	if(req.query.keyword != '') {
+		filter.$and.push({
+			$or: [
+				{ title: { $regex: req.query.keyword, $options: 'i' } },
+				{ description: { $regex: req.query.keyword, $options: 'i' } }
+			]
+		})
+	}
+
 	try {
 		const results = await Todo.aggregate([
 			{
-                $match: {
-                    // "status": {$eq: 'pending'},
-                    "createdBy": {$eq: new ObjectId(req.query.userId)},
-                }
+				$match: filter
             },
 			{
                 $lookup: {
@@ -55,12 +64,23 @@ router.get('/all', verify, async (req, res) => {
             },
 			{
 				$facet: {
-					// Stream A: Get the total matching count before limits are applied
+					// Stream A: Get the total matching count before limits are applied (ignores status filter from tabs)
 					totalCount: [
 						{ $count: "count" }
 					],
-					// Stream B: Apply skip and limit to fetch the specific data page
+					// Stream B: Get pending count (ignores status filter from tabs)
+					pendingCount: [
+						{ $match: { status: 'pending' } },
+						{ $count: "count" }
+					],
+					// Stream C: Get completed count (ignores status filter from tabs)
+					completedCount: [
+						{ $match: { status: 'completed' } },
+						{ $count: "count" }
+					],
+					// Stream D: Apply skip and limit to fetch the specific data page
 					paginatedData: [
+						 ...(status ? [{ $match: { status: status } }] : []),
 						{ $skip: parseInt(req.query.skip) },
 						{ $limit: parseInt(req.query.limit) }
 					]
@@ -70,9 +90,11 @@ router.get('/all', verify, async (req, res) => {
 
 		// Format the output since $facet returns an array containing arrays
 		const total = results[0]?.totalCount[0]?.count || 0;
+		const pendingCount = results[0]?.pendingCount[0]?.count || 0;
+		const completedCount = results[0]?.completedCount[0]?.count || 0;
 		const todos = results[0]?.paginatedData || [];
 
-		res.send({todos, total});
+		res.send({todos, total, pendingCount, completedCount});
 	} catch (err) {
 		res.json({message: err});
 	}
