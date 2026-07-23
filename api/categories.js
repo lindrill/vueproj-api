@@ -25,6 +25,40 @@ router.get('/all', async (req, res) => {
                 }
             },
 			{
+				$lookup: {
+					from: "todos",
+					let: { categoryId: "$_id" }, // Define variable from Categories
+					pipeline: [
+						{
+							$match: {
+								$expr: { $eq: ["$category", "$$categoryId"] } // Match todos for this category
+							}
+						},
+						{
+							$lookup: {
+								from: "users",
+								let: { userId: "$createdBy" }, // Define variable from Todos
+								pipeline: [
+									{
+										$match: {
+											$expr: { $eq: ["$_id", "$$userId"] } // Match tags for this todo
+										}
+									},
+									{ $unset: "password" },
+								],
+								as: "createdBy" // Nested array inside each todo
+							}
+						},
+						{
+							$addFields: {
+								createdBy: { $arrayElemAt: ["$createdBy", 0] }
+							}
+						}
+					],
+					as: "todos" // Parent array inside each category
+				},
+			},
+			{
 				$addFields: {
 					createdBy: { 
 						$arrayElemAt: ['$createdBy', 0] 
