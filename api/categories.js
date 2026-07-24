@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router(); // api
 const Category = require('../models/categories');
+const verify = require('../verifytoken');
 const ObjectId = require('mongoose').Types.ObjectId
 
 /*
@@ -8,13 +9,33 @@ const ObjectId = require('mongoose').Types.ObjectId
 */
 
 // get all categories
-router.get('/all', async (req, res) => {
+router.get('/all', verify, async (req, res) => {
+	const user_id = req.query.userId == 'All' ? '' : req.query.userId
+
+	// let filter = {$and: []}
+	let filter = {}
+	const conditions = []
+	
+	if(req.query.keyword != '') {
+		conditions.push({
+			$or: [
+				{ title: { $regex: req.query.keyword, $options: 'i' } }
+			]
+		})
+	}
+	if(user_id != '') {
+		conditions.push({ createdBy: { $eq: new ObjectId(user_id) } })
+	}
+
+	// Only add $and if there are conditions
+	if (conditions.length > 0) {
+		filter = {$and: conditions}
+	}
+
 	try {
 		const categories = await Category.aggregate([
 			{
-                $match: {
-                    "createdBy": {$eq: new ObjectId(req.query.userId)},
-                }
+                $match: filter
             },
 			{
                 $lookup: {
@@ -34,28 +55,9 @@ router.get('/all', async (req, res) => {
 								$expr: { $eq: ["$category", "$$categoryId"] } // Match todos for this category
 							}
 						},
-						{
-							$lookup: {
-								from: "users",
-								let: { userId: "$createdBy" }, // Define variable from Todos
-								pipeline: [
-									{
-										$match: {
-											$expr: { $eq: ["$_id", "$$userId"] } // Match tags for this todo
-										}
-									},
-									{ $unset: "password" },
-								],
-								as: "createdBy" // Nested array inside each todo
-							}
-						},
-						{
-							$addFields: {
-								createdBy: { $arrayElemAt: ["$createdBy", 0] }
-							}
-						}
+						{ $count: "count" }
 					],
-					as: "todos" // Parent array inside each category
+					as: "todosCount"
 				},
 			},
 			{
@@ -63,6 +65,11 @@ router.get('/all', async (req, res) => {
 					createdBy: { 
 						$arrayElemAt: ['$createdBy', 0] 
 					}
+				}
+			},
+			{
+				$addFields: {
+					todosCount: { $ifNull: [{ $arrayElemAt: ["$todosCount.count", 0] }, 0] }
 				}
 			}
 		])
@@ -73,18 +80,17 @@ router.get('/all', async (req, res) => {
 });
 
 // get specific category
-router.get('/:cat_id', async (req, res) => {
+router.get('/category/:cat_id', verify, async (req, res) => {
 	try {
 		const getCategory = await Category.findById(req.params.cat_id);
 		res.json(getCategory);
-		console.log(req.params.cat_id);
 	} catch(err) {
 		res.json({message: err});
 	}
 });
 
 // save new category to DB
-router.post('/new', async (req, res) => {
+router.post('/new', verify, async (req, res) => {
 	const newCategory = new Category({
 		title: req.body.title,
 		icon: req.body.icon,
@@ -101,7 +107,7 @@ router.post('/new', async (req, res) => {
 });
 
 // delete a category
-router.delete('/:cat_id', async (req, res) => {
+router.delete('/:cat_id', verify, async (req, res) => {
 	try {
 		const removeCategory = await Category.deleteOne({_id: req.params.cat_id});
 		res.json(removeCategory);
@@ -111,7 +117,7 @@ router.delete('/:cat_id', async (req, res) => {
 });
 
 // update category
-router.patch('/:cat_id', async (req, res) => {
+router.patch('/:cat_id', verify, async (req, res) => {
 	try {
 		const updateCategory = await Category.updateOne(
 			{_id: req.params.cat_id },

@@ -12,7 +12,7 @@ const verify = require('../verifytoken');
 // get users
 router.get('/all', verify, async (req, res) => {
 	try {
-		const getUsers = await User.find();
+		const getUsers = await User.find({}, { password: 0 });
 		res.send(getUsers);
 	} catch (err) {
 		res.json({message: err});

@@ -110,6 +110,90 @@ router.get('/:todo_id', verify, async (req, res) => {
 	}
 });
 
+// get todos by category
+router.get('/by-category/:cat_id', verify, async (req, res) => {
+	let filter = {$and: [
+		{"createdBy": {$eq: new ObjectId(req.query.userId)}},
+		{"category": {$eq: new ObjectId(req.params.cat_id)}}
+	]}
+	try {
+		const results = await Todo.aggregate([
+			{
+				$match: filter
+            },
+			{
+                $lookup: {
+                    from: 'users',
+                    localField: 'createdBy',
+                    foreignField: '_id',
+                    as: 'createdBy'
+                }
+            },
+			{
+                $lookup: {
+                    from: 'categories',
+                    localField: 'category',
+                    foreignField: '_id',
+                    as: 'category'
+                }
+            },
+			{
+                $unwind: {
+                    path: '$createdBy',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+			{
+				$addFields: {
+					category: { 
+						$arrayElemAt: ['$category', 0] 
+					}
+				}
+			},
+			{
+                $sort: {
+                    dueDate: 1
+                }
+            },
+			{
+				$facet: {
+					// Stream A: Get the total matching count before limits are applied (ignores status filter from tabs)
+					totalCount: [
+						{ $count: "count" }
+					],
+					// Stream B: Get pending count (ignores status filter from tabs)
+					pendingCount: [
+						{ $match: { status: 'pending' } },
+						{ $count: "count" }
+					],
+					// Stream C: Get completed count (ignores status filter from tabs)
+					completedCount: [
+						{ $match: { status: 'completed' } },
+						{ $count: "count" }
+					],
+					// Stream D: Apply skip and limit to fetch the specific data page
+					paginatedData: [
+						//  ...(status ? [{ $match: { status: status } }] : []),
+						{ $skip: parseInt(req.query.skip) },
+						{ $limit: parseInt(req.query.limit) }
+					]
+				}
+			}
+		])
+
+		// Format the output since $facet returns an array containing arrays
+		const total = results[0]?.totalCount[0]?.count || 0;
+		const pendingCount = results[0]?.pendingCount[0]?.count || 0;
+		const completedCount = results[0]?.completedCount[0]?.count || 0;
+		const todos = results[0]?.paginatedData || [];
+
+		// res.send({todos, total, pendingCount, completedCount});
+		res.json({todos, total, pendingCount, completedCount});
+	} catch(err) {
+		res.json({message: err});
+	}
+});
+
 // save new todo to DB
 router.post('/new', verify, async (req, res) => {
 	try {
