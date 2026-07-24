@@ -16,14 +16,14 @@ router.get('/all', verify, async (req, res) => {
 	let filter = {}
 	const conditions = []
 	
-	if(req.query.keyword != '') {
+	if(req.query.keyword && req.query.keyword != '') {
 		conditions.push({
 			$or: [
 				{ title: { $regex: req.query.keyword, $options: 'i' } }
 			]
 		})
 	}
-	if(user_id != '') {
+	if(user_id && user_id != '') {
 		conditions.push({ createdBy: { $eq: new ObjectId(user_id) } })
 	}
 
