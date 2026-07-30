@@ -11,8 +11,31 @@ const verify = require('../verifytoken');
 
 // get users
 router.get('/all', verify, async (req, res) => {
+	console.log('all users query', req.query)
+
+	let filter = {}
+	const conditions = []
+
+	if(req.query.keyword && req.query.keyword != '') {
+		conditions.push({
+			$or: [
+				{ first_name: { $regex: req.query.keyword, $options: 'i' } },
+				{ last_name: { $regex: req.query.keyword, $options: 'i' } },
+				{ email: { $regex: req.query.keyword, $options: 'i' } }
+			]
+		})
+	}
+	if(req.query.role && req.query.role != 'all') {
+		conditions.push({ role: { $eq: req.query.role } })
+	}
+
+	// Only add $and if there are conditions
+	if (conditions.length > 0) {
+		filter = {$and: conditions}
+	}	
+
 	try {
-		const getUsers = await User.find({}, { password: 0 });
+		const getUsers = await User.find(filter, { password: 0 });
 		res.send(getUsers);
 	} catch (err) {
 		res.json({message: err});
