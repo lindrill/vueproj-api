@@ -100,12 +100,44 @@ router.get('/all', verify, async (req, res) => {
 	}
 });
 
-// get specific todo
-router.get('/:todo_id', verify, async (req, res) => {
+// todos statistics endpoint
+router.get('/statistics', verify, async (req, res) => {
+	const start_date = req.query.start_date
+	const end_date = req.query.end_date
+	console.log('dates', start_date, end_date)
+	let filter = {$and: [
+		{"dateCreated": {$gte: new Date(start_date), $lte: new Date(end_date)}}
+	]}
+	
+
 	try {
-		const getTodo = await Todo.findById(req.params.todo_id);
-		res.json(getTodo);
-	} catch(err) {
+		const counts = await Todo.aggregate([
+			{
+				$match: filter
+            },
+			{
+                $facet: {
+                    totalCount: [
+                        { $count: "count" }
+                    ],
+                    pendingCount: [
+                        { $match: { status: 'pending' } },
+                        { $count: "count" }
+                    ],
+                    completedCount: [
+                        { $match: { status: 'completed' } },
+                        { $count: "count" }
+                    ]
+                }
+            }
+		])
+
+		const total = counts[0]?.totalCount[0]?.count || 0;
+        const pendingCount = counts[0]?.pendingCount[0]?.count || 0;
+        const completedCount = counts[0]?.completedCount[0]?.count || 0;
+
+		res.send({ total, pendingCount, completedCount });
+	} catch (err) {
 		res.json({message: err});
 	}
 });
