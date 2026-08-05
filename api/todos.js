@@ -104,10 +104,27 @@ router.get('/all', verify, async (req, res) => {
 router.get('/statistics', verify, async (req, res) => {
 	const start_date = req.query.start_date
 	const end_date = req.query.end_date
-	console.log('dates', start_date, end_date)
 	let filter = {$and: [
-		{"dateCreated": {$gte: new Date(start_date), $lte: new Date(end_date)}}
+		{"createdAt": {$gte: new Date(start_date), $lte: new Date(end_date)}}
 	]}
+
+	let groupFormat
+    switch (req.query.date_type) {
+        case 'This Year':
+            groupFormat = "%b"      // group by month, e.g. "Jan"
+            break
+        case 'This Month':
+            groupFormat = "%d"      // group by day of month, e.g. "05"
+            break
+        case 'This Week':
+            groupFormat = "%u"      // group by day of week, e.g. "Mon"
+            break
+        case 'Today':
+            groupFormat = "%H"   // group by hour, e.g. "14:00"
+            break
+        default:
+            groupFormat = "%b"
+    }
 	
 
 	try {
@@ -127,7 +144,16 @@ router.get('/statistics', verify, async (req, res) => {
                     completedCount: [
                         { $match: { status: 'completed' } },
                         { $count: "count" }
-                    ]
+                    ],
+					chartStats: [
+						{ $group: { 
+							_id: { $dateToString: { format: groupFormat, date: "$createdAt" } },
+							count: { $sum: 1 },
+						} },
+						{
+							$sort: { _id: -1 }
+						},
+					]
                 }
             }
 		])
@@ -135,8 +161,9 @@ router.get('/statistics', verify, async (req, res) => {
 		const total = counts[0]?.totalCount[0]?.count || 0;
         const pendingCount = counts[0]?.pendingCount[0]?.count || 0;
         const completedCount = counts[0]?.completedCount[0]?.count || 0;
+		const chartStats = counts[0]?.chartStats || [];
 
-		res.send({ total, pendingCount, completedCount });
+		res.send({ total, pendingCount, completedCount, chartStats });
 	} catch (err) {
 		res.json({message: err});
 	}
