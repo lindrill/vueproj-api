@@ -102,10 +102,12 @@ router.get('/all', verify, async (req, res) => {
 
 // todos statistics endpoint
 router.get('/statistics', verify, async (req, res) => {
-	const start_date = req.query.start_date
-	const end_date = req.query.end_date
+	const start_date = new Date(req.query.start_date)
+	const end_date = new Date(req.query.end_date)
+	end_date.setHours(23, 59, 59, 999)
+
 	let filter = {$and: [
-		{"createdAt": {$gte: new Date(start_date), $lte: new Date(end_date)}}
+		{"createdAt": {$gte: start_date, $lte: end_date}}
 	]}
 
 	let groupFormat
@@ -147,7 +149,7 @@ router.get('/statistics', verify, async (req, res) => {
                     ],
 					chartStats: [
 						{ $group: { 
-							_id: { $dateToString: { format: groupFormat, date: "$createdAt" } },
+							_id: { $dateToString: { format: groupFormat, date: "$createdAt", timezone: "Asia/Manila" } },
 							count: { $sum: 1 },
 						} },
 						{
