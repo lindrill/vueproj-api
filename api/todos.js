@@ -102,6 +102,7 @@ router.get('/all', verify, async (req, res) => {
 
 // todos statistics endpoint
 router.get('/statistics', verify, async (req, res) => {
+	const user_id = req.query.userId == 'All' ? '' : req.query.userId
 	const start_date = new Date(req.query.start_date)
 	const end_date = new Date(req.query.end_date)
 	end_date.setHours(23, 59, 59, 999)
@@ -109,6 +110,10 @@ router.get('/statistics', verify, async (req, res) => {
 	let filter = {$and: [
 		{"createdAt": {$gte: start_date, $lte: end_date}}
 	]}
+
+	if(user_id && user_id != '') {
+		filter.$and.push({ createdBy: { $eq: new ObjectId(user_id) } })
+	}
 
 	let groupFormat
     switch (req.query.date_type) {
@@ -160,12 +165,46 @@ router.get('/statistics', verify, async (req, res) => {
             }
 		])
 
+		const categories = await Todo.aggregate([
+			{
+				$match: filter
+            },
+			{
+                $lookup: {
+                    from: 'categories',
+                    localField: 'category',
+                    foreignField: '_id',
+                    as: 'category'
+                }
+            },
+			{
+				$addFields: {
+					category: { 
+						$arrayElemAt: ['$category', 0] 
+					}
+				}
+			},
+			{ 
+				$group: {
+					_id: { 
+						category: { $ifNull: [ "$category.title", "Uncategorized" ] },
+						icon: "$category.icon"
+					},
+					tasks: { $push: "$$ROOT" },
+					count: { $sum: 1 },
+				} 
+			},
+			{
+				$sort: { _id: -1 }
+			}
+		])
+
 		const total = counts[0]?.totalCount[0]?.count || 0;
         const pendingCount = counts[0]?.pendingCount[0]?.count || 0;
         const completedCount = counts[0]?.completedCount[0]?.count || 0;
 		const chartStats = counts[0]?.chartStats || [];
 
-		res.send({ total, pendingCount, completedCount, chartStats });
+		res.send({ total, pendingCount, completedCount, chartStats, categories });
 	} catch (err) {
 		res.json({message: err});
 	}
