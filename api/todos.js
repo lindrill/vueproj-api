@@ -78,6 +78,24 @@ router.get('/all', verify, async (req, res) => {
 						{ $match: { status: 'completed' } },
 						{ $count: "count" }
 					],
+					pendingDueDates: [
+						{ $match: { status: 'pending' } },
+						{
+							$group: {
+								_id: null,
+								dates: { $push: "$dueDate" }
+							}
+						}
+					],
+					completedDueDates: [
+						{ $match: { status: 'completed' } },
+						{
+							$group: {
+								_id: null,
+								dates: { $push: "$dueDate" }
+							}
+						}
+					],
 					// Stream D: Apply skip and limit to fetch the specific data page
 					paginatedData: [
 						 ...(status ? [{ $match: { status: status } }] : []),
@@ -93,8 +111,10 @@ router.get('/all', verify, async (req, res) => {
 		const pendingCount = results[0]?.pendingCount[0]?.count || 0;
 		const completedCount = results[0]?.completedCount[0]?.count || 0;
 		const todos = results[0]?.paginatedData || [];
-
-		res.send({todos, total, pendingCount, completedCount});
+		const pendingDates = results[0]?.pendingDueDates[0]?.dates || [];
+		const completedDates = results[0]?.completedDueDates[0]?.dates || [];
+		
+		res.send({todos, total, pendingCount, completedCount, pendingDates, completedDates});
 	} catch (err) {
 		res.json({message: err});
 	}
